@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react';
 const App = () => {
     const canvasRef = useRef(null);
     const ELEMENT_HEIGHT = 100; // Fixed height for all elements
-    const TOTAL_ELEMENTS = 1000; // Total number of elements
+    const TOTAL_ELEMENTS = 10000; // Total number of elements
     const VIEWPORT_WIDTH = window.innerWidth; // Canvas width
     const VIEWPORT_HEIGHT = window.innerHeight; // Canvas height
     const elements = [];
