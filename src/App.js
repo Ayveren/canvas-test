@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react';
 const App = () => {
     const canvasRef = useRef(null);
     const ELEMENT_HEIGHT = 100; // Fixed height for all elements
-    const TOTAL_ELEMENTS = 10000; // Total number of elements
+    const TOTAL_ELEMENTS = 1000; // Total number of elements
     const VIEWPORT_WIDTH = window.innerWidth; // Canvas width
     const VIEWPORT_HEIGHT = window.innerHeight; // Canvas height
     const elements = [];
@@ -19,6 +19,7 @@ const App = () => {
     let focusedIndex = 0; // Currently focused element
     let offsetX = 0; // Horizontal scroll offset
     let offsetY = 0; // Vertical scroll offset
+    let animationFrameId = null;
 
     const drawGrid = (ctx) => {
         let x = -offsetX;
@@ -72,45 +73,79 @@ const App = () => {
             }
         }
 
-        // Ensure the focused element is visible by adjusting the offsets
-        if (x - offsetX < 0) {
-            offsetX = x; // Move left
-        } else if (x + elements[focusedIndex].width - offsetX > VIEWPORT_WIDTH) {
-            offsetX = x + elements[focusedIndex].width - VIEWPORT_WIDTH; // Move right
-        }
-        if (y - offsetY < 0) {
-            offsetY = y; // Move up
-        } else if (y + ELEMENT_HEIGHT - offsetY > VIEWPORT_HEIGHT) {
-            offsetY = y + ELEMENT_HEIGHT - VIEWPORT_HEIGHT; // Move down
-        }
-
-        // Translate the canvas to match the offset
-        ctx.clearRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT); // Clear the canvas
-        drawGrid(ctx); // Redraw the grid with updated offsets
-
         // Draw the focus box
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 3;
         ctx.strokeRect(x - offsetX, y - offsetY, elements[focusedIndex].width, ELEMENT_HEIGHT);
     };
 
+    const animateFocus = (newOffsetX, newOffsetY, newIndex) => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+
+        const startOffsetX = offsetX;
+        const startOffsetY = offsetY;
+        const duration = 300; // Animation duration in ms
+        const startTime = performance.now();
+
+        const animate = (time) => {
+            const elapsed = time - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            offsetX = startOffsetX + (newOffsetX - startOffsetX) * progress;
+            offsetY = startOffsetY + (newOffsetY - startOffsetY) * progress;
+
+            drawGrid(ctx); // Redraw the grid with updated offsets
+            focusedIndex = newIndex; // Update the focused index
+            drawFocusBox(ctx); // Draw the focus box
+
+            if (progress < 1) {
+                animationFrameId = requestAnimationFrame(animate);
+            }
+        };
+
+        cancelAnimationFrame(animationFrameId); // Cancel any previous animation
+        animationFrameId = requestAnimationFrame(animate);
+    };
+
     const handleKeyPress = (event) => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
 
-        if (event.key === 'ArrowLeft' && focusedIndex > 0) {
-            focusedIndex--;
-        } else if (event.key === 'ArrowRight' && focusedIndex < TOTAL_ELEMENTS - 1) {
-            focusedIndex++;
-        } else if (event.key === 'ArrowUp') {
-            const columnsPerRow = Math.floor(VIEWPORT_WIDTH / elements[0].width);
-            focusedIndex = Math.max(focusedIndex - columnsPerRow, 0);
-        } else if (event.key === 'ArrowDown') {
-            const columnsPerRow = Math.floor(VIEWPORT_WIDTH / elements[0].width);
-            focusedIndex = Math.min(focusedIndex + columnsPerRow, TOTAL_ELEMENTS - 1);
+        let newOffsetX = offsetX;
+        let newOffsetY = offsetY;
+        let newIndex = focusedIndex;
+
+        let x = 0;
+        let y = 0;
+
+        // Calculate current position of the focused element
+        for (let i = 0; i < focusedIndex; i++) {
+            x += elements[i].width;
+            if (x >= VIEWPORT_WIDTH) {
+                x = 0;
+                y += ELEMENT_HEIGHT;
+            }
         }
 
-        drawFocusBox(ctx); // Update the focus box and offsets
+        // Move focus and calculate new offsets
+        if (event.key === 'ArrowLeft' && focusedIndex > 0) {
+            newIndex--;
+            newOffsetX = Math.max(offsetX - elements[newIndex].width, 0);
+        } else if (event.key === 'ArrowRight' && focusedIndex < TOTAL_ELEMENTS - 1) {
+            newIndex++;
+            newOffsetX = offsetX + elements[focusedIndex].width;
+        } else if (event.key === 'ArrowUp') {
+            const columnsPerRow = Math.floor(VIEWPORT_WIDTH / elements[0].width);
+            newIndex = Math.max(focusedIndex - columnsPerRow, 0);
+            newOffsetY = Math.max(offsetY - ELEMENT_HEIGHT, 0);
+        } else if (event.key === 'ArrowDown') {
+            const columnsPerRow = Math.floor(VIEWPORT_WIDTH / elements[0].width);
+            newIndex = Math.min(focusedIndex + columnsPerRow, TOTAL_ELEMENTS - 1);
+            newOffsetY = offsetY + ELEMENT_HEIGHT;
+        }
+
+        animateFocus(newOffsetX, newOffsetY, newIndex);
     };
 
     useEffect(() => {
@@ -127,6 +162,7 @@ const App = () => {
 
         return () => {
             window.removeEventListener('keydown', handleKeyPress);
+            cancelAnimationFrame(animationFrameId); // Cancel any running animation
         };
     }, []);
 
